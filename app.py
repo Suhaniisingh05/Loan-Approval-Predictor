@@ -1,88 +1,141 @@
 import streamlit as st
+import pickle
 import pandas as pd
+import numpy as np
 
-# --- Load the dataset ---
-@st.cache_data
-def load_data():
-    df = pd.read_csv("zomato.csv", engine='python', on_bad_lines='skip', encoding='utf-8')
-    df = df[['name', 'location', 'cuisines', 'approx_cost(for two people)', 
-             'online_order', 'book_table', 'rate', 'votes']]
-    df.dropna(inplace=True)
+# --- Configuration & Model Loading ---
 
-    # Clean 'rate' column
-    def clean_rate(x):
-        try:
-            if '/' in str(x):
-                return float(x.split('/')[0])
-            else:
-                return float(x)
-        except:
-            return 0
-    df['rate'] = df['rate'].apply(clean_rate)
-
-    # Clean 'approx_cost' column
-    df['approx_cost(for two people)'] = df['approx_cost(for two people)'].replace(',', '', regex=True)
-    df['approx_cost(for two people)'] = pd.to_numeric(df['approx_cost(for two people)'], errors='coerce')
-    df.dropna(subset=['approx_cost(for two people)'], inplace=True)
-
-    # Normalize strings
-    df['location'] = df['location'].str.strip().str.lower()
-    df['cuisines'] = df['cuisines'].str.strip().str.lower()
-
-    # Convert Yes/No to 0/1
-    df['online_order'] = df['online_order'].apply(lambda x: 1 if x == 'Yes' else 0)
-    df['book_table'] = df['book_table'].apply(lambda x: 1 if x == 'Yes' else 0)
-
-    return df
-
-df = load_data()
-
-# --- Recommendation function ---
-def recommend_restaurants(location, cuisine, budget_min, budget_max, 
-                          online_order=None, book_table=None, min_rating=0):
-    temp_df = df[df['location'].str.contains(location, na=False)]
-    temp_df = temp_df[temp_df['cuisines'].str.contains(cuisine, na=False)]
-    temp_df = temp_df[(temp_df['approx_cost(for two people)'] >= budget_min) & 
-                      (temp_df['approx_cost(for two people)'] <= budget_max)]
+# Load the saved model and column list
+try:
+    with open('loan_prediction_model.pkl', 'rb') as file:
+        model_data = pickle.load(file)
     
-    if online_order is not None:
-        temp_df = temp_df[temp_df['online_order'] == online_order]
-    if book_table is not None:
-        temp_df = temp_df[temp_df['book_table'] == book_table]
+    model = model_data['model']
+    # The 'columns' list tells us the exact order and names of the 
+    # features the model was trained on (e.g., Gender_Male, Married_Yes)
+    model_columns = model_data['columns'] 
     
-    temp_df = temp_df[temp_df['rate'] >= min_rating]
+except FileNotFoundError:
+    st.error("Model file not found. Please run 'model_trainer.py' first.")
+    st.stop()
+
+# Set up the Streamlit interface
+st.set_page_config(page_title="Financial Risk Predictor", layout="centered")
+st.title("🏦 Automated Loan Eligibility Checker")
+st.markdown("---")
+
+
+# --- User Input Fields ---
+
+st.header("1. Applicant Profile")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    gender = st.selectbox('Gender', ['Male', 'Female'])
+with col2:
+    married = st.selectbox('Married', ['Yes', 'No'])
+with col3:
+    dependents = st.selectbox('Dependents', ['0', '1', '2', '3+'])
+
+
+col4, col5 = st.columns(2)
+
+with col4:
+    education = st.selectbox('Education', ['Graduate', 'Not Graduate'])
+with col5:
+    self_employed = st.selectbox('Self Employed', ['Yes', 'No'])
+
+# --- Financial Inputs ---
+
+st.header("2. Financial & Loan Request")
+
+col6, col7 = st.columns(2)
+
+with col6:
+    # Use standard 1.0 (Good Credit) as the key predictor
+    credit_history = st.radio('Credit History (1.0 = Met Guidelines)', [1.0, 0.0])
+
+with col7:
+    loan_amount = st.slider('Loan Amount (in thousands)', min_value=10, max_value=700, value=150, step=10)
+
+
+st.subheader("Income Details")
+col8, col9 = st.columns(2)
+
+with col8:
+    applicant_income = st.number_input('Applicant Income', min_value=0, value=4000)
+
+with col9:
+    coapplicant_income = st.number_input('Co-Applicant Income', min_value=0, value=1000)
+
+
+property_area = st.selectbox('Property Area', ['Urban', 'Rural', 'Semiurban'])
+loan_term = st.selectbox('Loan Term (Months)', [360.0, 180.0, 60.0, 480.0])
+
+
+# --- Prediction Logic (CORRECTED) ---
+
+if st.button('Predict Loan Status', help="Click to see the model's prediction"):
     
-    temp_df = temp_df.sort_values(by=['rate', 'votes'], ascending=False)
+    # 1. Prepare Features and Handle Encoding/Feature Engineering
     
-    return temp_df[['name', 'location', 'cuisines', 'approx_cost(for two people)', 
-                    'rate', 'online_order', 'book_table']].head(10)
+    # Feature Engineering: Total Income
+    total_income = applicant_income + coapplicant_income
+    
+    # Base structure to hold all 0/1 values for the model
+    # We initialize all feature columns that the model expects to zero
+    final_features = pd.DataFrame(0, index=[0], columns=model_columns)
 
-# --- Streamlit UI ---
-st.title("🍽️ Zomato Bangalore Restaurant Recommender")
+    # 2. Map User Inputs to the Model's EXPECTED Format (One-Hot Encoded)
 
-# User Inputs
-location = st.text_input("Enter Location (e.g., Indiranagar):").strip().lower()
-cuisine = st.text_input("Enter Cuisine (e.g., Italian):").strip().lower()
-budget = st.slider("Select Budget Range (for two people)", 100, 5000, (300, 1500))
-min_rating = st.slider("Minimum Rating", 0.0, 5.0, 3.5, 0.1)
-online_order = st.radio("Online Ordering?", ("Doesn't Matter", "Yes", "No"))
-book_table = st.radio("Table Booking?", ("Doesn't Matter", "Yes", "No"))
+    # Numerical Features (Set directly)
+    final_features['Total_Income'] = total_income
+    final_features['LoanAmount'] = loan_amount
+    final_features['Loan_Amount_Term'] = loan_term
+    final_features['Credit_History'] = credit_history
+    
+    # Categorical Features (Set '1' for the selected category)
+    # The columns are named as [Original_Feature]_[Category_Value]
+    
+    if gender == 'Male':
+        final_features['Gender_Male'] = 1
+        
+    if married == 'Yes':
+        final_features['Married_Yes'] = 1
+        
+    if education == 'Not Graduate':
+        final_features['Education_Not Graduate'] = 1
+        
+    if self_employed == 'Yes':
+        final_features['Self_Employed_Yes'] = 1
+        
+    # Dependents (Note the columns match 'Dependents_1', 'Dependents_2', etc.)
+    if dependents != '0': # If it's 1, 2, or 3+, set the corresponding column to 1
+        final_features[f'Dependents_{dependents}'] = 1
 
-# Convert inputs
-online_order_val = 1 if online_order == "Yes" else 0 if online_order == "No" else None
-book_table_val = 1 if book_table == "Yes" else 0 if book_table == "No" else None
+    # Property Area
+    if property_area == 'Semiurban':
+        final_features['Property_Area_Semiurban'] = 1
+    elif property_area == 'Urban':
+        final_features['Property_Area_Urban'] = 1
+    # 'Rural' is the reference category (where both Urban/Semiurban are 0)
+    
+    
+    # --- Make Prediction ---
+    
+    # The input_df (final_features) now has the exact column names and order as the model
+    prediction = model.predict(final_features)[0]
+    prediction_proba = model.predict_proba(final_features)[0][1] 
 
-# Recommend button
-if st.button("🔍 Recommend Restaurants"):
-    if location and cuisine:
-        results = recommend_restaurants(location, cuisine,
-                                        budget[0], budget[1],
-                                        online_order_val, book_table_val,
-                                        min_rating)
-        if results.empty:
-            st.warning("No restaurants found matching your preferences. Try adjusting filters.")
-        else:
-            st.success("Here are the top recommendations:")
-            st.dataframe(results)
+    st.markdown("---")
+    st.subheader("Model Decision:")
+
+    if prediction == 1:
+        st.success(f"**Loan Status: APPROVED!**")
+        st.info(f"Model Confidence: {prediction_proba*100:.2f}%")
+        st.balloons()
     else:
-        st.error("Please enter both location and cuisine.")
+        st.error(f"**Loan Status: REJECTED.**")
+        st.warning(f"Model Confidence: {(1 - prediction_proba)*100:.2f}%")
+        st.info("Recommendation: The bank should review the application for risk factors.")

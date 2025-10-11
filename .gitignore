@@ -1,0 +1,8 @@
+# Python environments
+venv/
+.venv/
+
+# Binary/compiled files
+*.pyc
+__pycache__/
+
