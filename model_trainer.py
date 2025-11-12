@@ -32,7 +32,7 @@ for col in ['LoanAmount', 'Loan_Amount_Term']:
 # Feature Engineering: Create Total Income
 df['Total_Income'] = df['ApplicantIncome'] + df['CoapplicantIncome']
 df.drop(['ApplicantIncome', 'CoapplicantIncome'], axis=1, inplace=True)
-
+ 
 # Define X (Features) and y (Target)
 X = df.drop('Loan_Status', axis=1)
 y = df['Loan_Status']
@@ -58,7 +58,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 model = LogisticRegression(solver='liblinear', random_state=42)
 model.fit(X_train, y_train)
 
-# Optional: Print evaluation metrics (for debugging/validation)
 from sklearn.metrics import accuracy_score
 y_pred = model.predict(X_test)
 print(f"Model Training Complete. Accuracy: {accuracy_score(y_test, y_pred):.4f}")
