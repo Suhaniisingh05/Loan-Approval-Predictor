@@ -63,7 +63,7 @@ y_pred = model.predict(X_test)
 print(f"Model Training Complete. Accuracy: {accuracy_score(y_test, y_pred):.4f}")
 
 # --- 5. Save Model and Column Names ---
-# Saving column names is VITAL for Streamlit to know the input order.
+
 model_data = {
     'model': model,
     'columns': X.columns.tolist()
