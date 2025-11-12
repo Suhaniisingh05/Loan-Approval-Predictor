@@ -5,22 +5,20 @@ import numpy as np
 
 # --- Configuration & Model Loading ---
 
-# Load the saved model and column list
 try:
     with open('loan_prediction_model.pkl', 'rb') as file:
         model_data = pickle.load(file)
     
     model = model_data['model']
-    # The 'columns' list tells us the exact order and names of the 
-    # features the model was trained on (e.g., Gender_Male, Married_Yes)
+    
     model_columns = model_data['columns'] 
     
 except FileNotFoundError:
     st.error("Model file not found. Please run 'model_trainer.py' first.")
     st.stop()
 
-# Set up the Streamlit interface
-st.set_page_config(page_title="Financial Risk Predictor", layout="centered")
+# Streamlit interface
+st.set_page_config(page_title="Loan Eligibility Classifier", layout="centered")
 st.title("🏦 Automated Loan Eligibility Checker")
 st.markdown("---")
 
@@ -74,7 +72,7 @@ property_area = st.selectbox('Property Area', ['Urban', 'Rural', 'Semiurban'])
 loan_term = st.selectbox('Loan Term (Months)', [360.0, 180.0, 60.0, 480.0])
 
 
-# --- Prediction Logic (CORRECTED) ---
+# --- Prediction Logic  ---
 
 if st.button('Predict Loan Status', help="Click to see the model's prediction"):
     
@@ -83,8 +81,7 @@ if st.button('Predict Loan Status', help="Click to see the model's prediction"):
     # Feature Engineering: Total Income
     total_income = applicant_income + coapplicant_income
     
-    # Base structure to hold all 0/1 values for the model
-    # We initialize all feature columns that the model expects to zero
+    # Base structure 
     final_features = pd.DataFrame(0, index=[0], columns=model_columns)
 
     # 2. Map User Inputs to the Model's EXPECTED Format (One-Hot Encoded)
@@ -96,7 +93,6 @@ if st.button('Predict Loan Status', help="Click to see the model's prediction"):
     final_features['Credit_History'] = credit_history
     
     # Categorical Features (Set '1' for the selected category)
-    # The columns are named as [Original_Feature]_[Category_Value]
     
     if gender == 'Male':
         final_features['Gender_Male'] = 1
@@ -124,7 +120,6 @@ if st.button('Predict Loan Status', help="Click to see the model's prediction"):
     
     # --- Make Prediction ---
     
-    # The input_df (final_features) now has the exact column names and order as the model
     prediction = model.predict(final_features)[0]
     prediction_proba = model.predict_proba(final_features)[0][1] 
 
