@@ -55,7 +55,7 @@ This solution demonstrates core skills in **Data Science, Predictive Modeling, a
 
 | Resource | Link |
 | :--- | :--- |
-| **Live Web Application** | **[https://automated-loan-approval-predictor.streamlit.app/]** |
+| **Live Web Application** | **https://automated-loan-approval-predictor.streamlit.app/** |
 | **Kaggle Dataset** | [Loan Prediction Problem Dataset](https://www.kaggle.com/datasets/altruistdelhite04/loan-prediction-problem-dataset) |
 
 ***
